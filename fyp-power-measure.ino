@@ -53,21 +53,6 @@ static void sendSample(uint32_t ts, float avg_mw, uint32_t duration_us,
   Serial.write(pb_buf, len);
 }
 
-static void waitForStartCommand() {
-  Serial.println("# Ready. Send START to begin sampling.");
-  while (true) {
-    if (Serial.available()) {
-      String line = Serial.readStringUntil('\n');
-      line.trim();
-      if (line.length() > 0 && line.equalsIgnoreCase("START")) {
-        Serial.println("# Streaming (nanopb).");
-        return;
-      }
-    }
-    delay(10);
-  }
-}
-
 void setup() {
   Serial.begin(921600);
   delay(200);
@@ -94,8 +79,6 @@ void setup() {
   ina228.setVoltageConversionTime(INA228_TIME_50_us);
   ina228.setCurrentConversionTime(INA228_TIME_50_us);
   ina228.resetAccumulators();
-
-  waitForStartCommand();
 
   window_start_us = micros();
   attachInterrupt(digitalPinToInterrupt(IS_INFERENCING_PIN), onSyncEdge, CHANGE);
