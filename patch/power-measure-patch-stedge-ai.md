@@ -93,12 +93,12 @@ Edit the **`PWR_SYNC_GPIO_*`** / **`PWR_SYNC_GPIO_RCC_ENABLE`** defaults in the 
 3. Run the benchmark with power measurement flags:
 
    ```bash
-   python run_benchmark.py --power-serial /dev/ttyUSB1 --power-baud 921600 --validation-count 10
+   python run_benchmark.py --power-serial /dev/ttyUSB1 --power-baud 921600 --validation-count 50
    ```
 
    - `--power-serial` — Serial port for INA228 (e.g., `/dev/ttyUSB1`). If omitted, auto-detects ESP32-C6.
    - `--power-baud` — Baud rate (default: `921600`, matches Arduino sketch)
-   - `--validation-count` — Number of inference runs per model (default: `10`)
+   - `--validation-count` — Number of inference runs per model
 
 When power measurement is enabled, a background thread **appends every protobuf sample** to **`fyp-playground/results/benchmark/power-measure.csv`** with a leading **`host_time_iso`** column (UTC). **`avg_power_mW`** in `fyp-playground/results/benchmark/benchmark_results.csv` uses only samples captured during each model’s **validate** step with `is_inference=True`.
 
