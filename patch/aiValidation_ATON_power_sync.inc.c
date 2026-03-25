@@ -5,7 +5,7 @@
  *        #include "stm32n6xx_hal.h"
  * 2) Paste this entire file’s body immediately AFTER the _dumpable_tensor_name[] block
  *    (after the closing "};" and before _APP_VERSION_MAJOR_ / struct aton_context).
- * 3) Ensure call sites exist (see docs/power-measure-patch-stedge-ai.md).
+ * 3) Ensure call sites exist (see patch/power-measure-patch-stedge-ai.md).
  *
  * Or copy the same block from a working aiValidation_ATON.c in this repo’s ST install.
  */
