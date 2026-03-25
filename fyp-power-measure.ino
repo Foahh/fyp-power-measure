@@ -73,11 +73,12 @@ void setup() {
 
   ina228.setShunt(SHUNT_RESISTOR_OHMS, MAX_EXPECTED_CURRENT_A);
 
-  // Fast conversion: 4x averaging, 50us per conversion -> ~400us cycle.
-  // The hardware accumulator integrates every conversion internally.
-  ina228.setAveragingCount(INA228_COUNT_4);
+  // No hardware averaging — the energy accumulator already averages across all
+  // conversion cycles. Skip temperature to halve cycle time.
+  ina228.setAveragingCount(INA228_COUNT_1);
   ina228.setVoltageConversionTime(INA228_TIME_50_us);
   ina228.setCurrentConversionTime(INA228_TIME_50_us);
+  ina228.setMode(INA228_MODE_CONT_BUS_SHUNT);
   ina228.resetAccumulators();
 
   window_start_us = micros();
