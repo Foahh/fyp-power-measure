@@ -15,7 +15,7 @@ This repository includes:
 - **ST Edge AI patch helper script**: `patch_stedgeai_power.py`
 - **Patch snippets and documentation** under `patch/`
 
-When the ST Edge AI patch is applied, `avg_power_mW` is computed only from samples collected while inference is active.
+When the ST Edge AI patch is applied, `avg_power_inf_mW` is computed only from samples collected while inference is active.
 
 ## Requirements
 
