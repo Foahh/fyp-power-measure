@@ -13,6 +13,7 @@ static constexpr int INA228_SDA_PIN = 2;
 static constexpr int INA228_SCL_PIN = 1;
 
 static constexpr int IS_INFERENCING_PIN = 3;
+static constexpr char PM_PING_CMD[] = "PM_PING";
 
 // Encode buffer for protobuf payload.
 static uint8_t pb_buf[PowerSample_size];
@@ -28,6 +29,43 @@ static void IRAM_ATTR onSyncEdge() {
 
 // Window start timestamp (set after each accumulator reset).
 static uint32_t window_start_us = 0;
+static char serial_cmd_buf[32];
+static size_t serial_cmd_len = 0;
+
+static void sendAckLine() {
+  const bool sync_high = digitalRead(IS_INFERENCING_PIN) == HIGH;
+  Serial.printf("PM_ACK ina228=1 sync=%d ts_us=%lu\n", sync_high ? 1 : 0, (unsigned long)micros());
+}
+
+static void processSerialCommand(const char* cmd) {
+  if (strcmp(cmd, PM_PING_CMD) == 0) {
+    sendAckLine();
+  }
+}
+
+static void serviceSerialCommands() {
+  while (Serial.available() > 0) {
+    const int ch = Serial.read();
+    if (ch < 0) {
+      return;
+    }
+    if (ch == '\n' || ch == '\r') {
+      if (serial_cmd_len > 0) {
+        serial_cmd_buf[serial_cmd_len] = '\0';
+        processSerialCommand(serial_cmd_buf);
+        serial_cmd_len = 0;
+      }
+      continue;
+    }
+
+    if (serial_cmd_len < (sizeof(serial_cmd_buf) - 1)) {
+      serial_cmd_buf[serial_cmd_len++] = (char)ch;
+    } else {
+      // Drop oversized command and wait for terminator.
+      serial_cmd_len = 0;
+    }
+  }
+}
 
 static void sendSample(uint32_t ts, float avg_mw, uint32_t duration_us,
                        bool is_inference) {
@@ -61,10 +99,9 @@ void setup() {
   Wire.setClock(400000);
   pinMode(IS_INFERENCING_PIN, INPUT_PULLDOWN);
 
-  Serial.println("# INA228 monitor starting...");
   while (true) {
     if (!ina228.begin(INA228_I2C_ADDR, &Wire)) {
-      Serial.println("ERROR: INA228 not found.");
+      Serial.println("# ERROR: INA228 not found.");
     } else {
       break;
     }
@@ -86,6 +123,8 @@ void setup() {
 }
 
 void loop() {
+  serviceSerialCommands();
+
   if (!edge_detected) {
     return;
   }
