@@ -1,119 +1,127 @@
-# Patching ST Edge AI for power measurement (`avg_power_mW`)
+# Patching ST Edge AI for Power Measurement
 
-This file is the **canonical** guide for the power-measure ST Edge AI patch.
+This document is the **canonical guide** for applying the ST Edge AI power-measurement patch.
 
-This project benchmarks inference on the STM32N6570-DK using ST Edge AI (`stedgeai`, `n6_loader.py`) and can record **average power during NPU inference** when you use an external INA228 monitor (Arduino sketch in `fyp-power-measure.ino`).
+This project benchmarks inference on the **STM32N6570-DK** using **ST Edge AI** (`stedgeai`, `n6_loader.py`). It can also record **average power during NPU inference** when used with an external **INA228** monitor running the Arduino sketch `fyp-power-measure.ino`.
 
-After you **upgrade ST Edge AI** or **reinstall** the tree, re-apply the patch below.
+If you **upgrade ST Edge AI** or **reinstall** the ST Edge AI tree, you must **re-apply this patch**.
 
-## Which files need patching?
+## Files That May Need Patching
 
-**Both validation files** may need patching depending on your build configuration:
-- `aiValidation_ATON.c` - Standard ATON/NPU runtime
-- `aiValidation_ATON_ST_AI.c` - ST_AI validation target
+Depending on your build configuration, **both validation source files** may need to be patched:
 
-Use the **automated script** (recommended) to patch both files idempotently.
+- `aiValidation_ATON.c` — standard ATON/NPU runtime
+- `aiValidation_ATON_ST_AI.c` — ST_AI validation target
 
-## Automated patching (recommended)
+Use the **automated patch script** whenever possible. It patches both files **idempotently**.
 
-Run the idempotent patch script to automatically patch both validation files:
+## Automated Patching (Recommended)
+
+Run the patch script:
 
 ```bash
 python3 patch_stedgeai_power.py
 ```
 
 The script:
+
 - Patches both `aiValidation_ATON.c` and `aiValidation_ATON_ST_AI.c`
-- Is idempotent (safe to run multiple times)
-- Adds HAL include, GPIO helpers, and function calls automatically
-- Requires `STEDGEAI_CORE_DIR` environment variable
+- Is **idempotent**, so it is safe to run multiple times
+- Automatically adds the HAL include, GPIO helpers, and required function calls
+- Requires the `STEDGEAI_CORE_DIR` environment variable to be set
 
-After patching, rebuild and flash NPU_Validation firmware.
+After patching, **rebuild and flash** the `NPU_Validation` firmware.
 
-## What the patch does
+## What the Patch Does
 
-1. **`aiValidation_ATON.c`** — Adds **static** GPIO helpers and calls them around **`npu_run()`** so only **inference** is marked high on a pin (default **PD6** on STM32N6570-DK; checked against BSP for conflicts), not UART/USB protocol I/O.
-2. **Host** — Benchmark reads the INA228 serial stream during `validate` when `--power-serial` flag is provided (`fyp-playground/scripts/benchmark/`).
+1. **Firmware patch (`aiValidation_ATON.c`)**  
+   Adds **static GPIO helper functions** and places calls around **`npu_run()`** so that a GPIO pin is driven high **only during inference**.
 
-There is **no** separate `power_measure_sync.c` and **no** NPU_Validation **Makefile** change: everything lives in one middleware file.
+   - Default pin: **PD6** on the **STM32N6570-DK** (D7 on CN11, on the back of the board)
+   - This was chosen after checking the BSP for conflicts
+   - UART/USB protocol I/O is **not** included in the measurement window
 
-## One-file patch (recommended)
+2. **Host-side benchmark integration**  
+   During `validate`, the benchmark reads the INA228 serial stream when the `--power-serial` flag is provided.
 
-**Source in this repo:** `patch/aiValidation_ATON_power_sync.inc.c`
+   Relevant path:
 
-**Target in ST install:**
+   `fyp-playground/scripts/benchmark/`
+
+There is **no separate** `power_measure_sync.c` file and **no Makefile change** required for `NPU_Validation`. All changes live inside a single middleware source file.
+
+## One-File Patch (Manual Method)
+
+**Source in this repository:**
+
+`patch/aiValidation_ATON_power_sync.inc.c`
+
+**Target in the ST Edge AI installation:**
 
 `$STEDGEAI_CORE_DIR/Middlewares/ST/AI/Validation/Src/aiValidation_ATON.c`
 
-### Steps
+### Manual Steps
 
 1. Open `aiValidation_ATON.c`.
-2. With the other `#include` lines, add **once** (if missing):
+
+2. Add the following include **once**, alongside the other `#include` lines, if it is not already present:
 
    ```c
    #include "stm32n6xx_hal.h"
    ```
 
-3. Paste the **code block** from `aiValidation_ATON_power_sync.inc.c` (everything after the file comment) **immediately after** the `_dumpable_tensor_name[]` array (after the closing `};`), **before** `_APP_VERSION_MAJOR_` / `struct aton_context`.
+3. Copy the contents of `aiValidation_ATON_power_sync.inc.c`  
+   Paste **everything after the file comment** immediately after the `_dumpable_tensor_name[]` array — that is, after its closing `};` and before `_APP_VERSION_MAJOR_` or `struct aton_context`.
 
-4. **Call sites** — If your file is stock and does not already call the helpers, add:
+4. Add the required call sites if they are not already present:
 
-   - In **`aiValidationInit()`**, after `cyclesCounterInit();`:
-
-     ```c
-       power_measurement_sync_init();
-     ```
-
-   - In **`aiPbCmdNNRun`**, wrap **`npu_run`**:
+   - In **`aiValidationInit()`**, add this line immediately after `cyclesCounterInit();`:
 
      ```c
-       power_measurement_sync_begin();
-       npu_run(&ctx->instance, &counters);
-       power_measurement_sync_end();
+     power_measurement_sync_init();
      ```
 
-   If ST refactors the file, search for `npu_run(` and keep **begin/end** directly around that call.
+   - In **`aiPbCmdNNRun`**, wrap the `npu_run()` call like this:
 
-5. Rebuild and flash **NPU_Validation** (e.g. `BUILD_CONF=N6-DK` via `n6_loader.py` / benchmark load step).
+     ```c
+     power_measurement_sync_begin();
+     npu_run(&ctx->instance, &counters);
+     power_measurement_sync_end();
+     ```
 
-### Disable without removing code
+   If ST changes the file layout in a future release, search for `npu_run(` and ensure that `power_measurement_sync_begin()` and `power_measurement_sync_end()` remain placed **directly around that call**.
 
-Define **`PWR_MEASUREMENT_SYNC_ENABLE`** to **`0`** before the pasted block (e.g. in `aiValidation_ATON.c` or project `CFLAGS`), or edit the `#ifndef PWR_MEASUREMENT_SYNC_ENABLE` default in the pasted section.
+5. Rebuild and flash **`NPU_Validation`**  
+   For example, use `BUILD_CONF=N6-DK` via `n6_loader.py` or your benchmark loading step.
 
-### Change GPIO
+## Disabling the Patch Without Removing It
 
-Edit the **`PWR_SYNC_GPIO_*`** / **`PWR_SYNC_GPIO_RCC_ENABLE`** defaults in the pasted block so the RCC macro matches the port (e.g. `__HAL_RCC_GPIOH_CLK_ENABLE()` if you move to port H).
+To disable the synchronization logic without deleting the code, define:
 
-## Arduino and host benchmark
+```c
+PWR_MEASUREMENT_SYNC_ENABLE 0
+```
 
-1. Flash `fyp-power-measure.ino`. It uses **interrupt-driven edge detection** on the sync pin and the **INA228 energy accumulator** for accurate power measurement. Sends binary **protobuf messages** (PowerSample) over serial at 921600 baud. Wire **STM32 sync** (**PD6** by default) to **`IS_INFERENCING_PIN`** (GPIO 3) and common ground.
+Do this **before** the pasted block, either:
 
-2. `pip install pyserial protobuf`
+- directly in `aiValidation_ATON.c`, or
+- via project `CFLAGS`
 
-3. Run the benchmark with power measurement flags:
+Alternatively, edit the default value in the pasted section:
 
-   ```bash
-   python run_benchmark.py --power-serial /dev/ttyUSB1 --power-baud 921600 --validation-count 50
-   ```
+```c
+#ifndef PWR_MEASUREMENT_SYNC_ENABLE
+```
 
-   - `--power-serial` — Serial port for INA228 (e.g., `/dev/ttyUSB1`). If omitted, auto-detects ESP32-C6.
-   - `--power-baud` — Baud rate (default: `921600`, matches Arduino sketch)
-   - `--validation-count` — Number of inference runs per model
+## Changing the GPIO Pin
 
-When power measurement is enabled, a background thread **appends every protobuf sample** to **`fyp-playground/results/benchmark/power-measure.csv`** with a leading **`host_time_iso`** column (UTC). **`avg_power_mW`** in `fyp-playground/results/benchmark/benchmark_results.csv` uses only samples captured during each model’s **validate** step with `is_inference=True`.
+To use a different GPIO pin, edit the defaults for:
 
-## After an ST Edge AI upgrade
+- `PWR_SYNC_GPIO_*`
+- `PWR_SYNC_GPIO_RCC_ENABLE`
 
-1. Re-paste **`aiValidation_ATON_power_sync.inc.c`** (and `#include "stm32n6xx_hal.h"` + call sites if the vendor file reset).
-2. Rebuild and flash.
+Make sure the RCC macro matches the selected port. For example, if you move the pin to **port H**, use:
 
-## Troubleshooting
-
-| Issue | What to check |
-|--------|----------------|
-| Empty `avg_power_mW` | `--power-serial` not provided, wrong port, `pyserial`/`protobuf` missing |
-| No serial output | If no `/dev/ttyUSB*` (and auto-detect) is found for the ESP32 monitor, enable USB CDC ("USC-CDC") so the board exposes a serial device (typically `/dev/ttyACM*`), then pass it via `--power-serial` |
-| Power looks like whole-run average | Sync GPIO not wired; benchmark falls back to all samples |
-| Build errors in the new block | Pin/port conflict or RIF/security; change `PWR_SYNC_*` / RCC macro |
-| HAL / GPIO undeclared | `stm32n6xx_hal.h` include path / N6 build only |
-| Serial read errors | Check baud rate is 921600, Arduino sketch flashed correctly |
+```c
+__HAL_RCC_GPIOH_CLK_ENABLE()
+```
