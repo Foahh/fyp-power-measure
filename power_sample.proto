@@ -2,7 +2,7 @@ syntax = "proto3";
 
 message PowerSample {
   uint32 timestamp_us = 1;
-  uint32 avg_mw = 2;
+  float energy_j = 2;
   uint32 duration_us = 3;
   bool is_inference = 4;
 }

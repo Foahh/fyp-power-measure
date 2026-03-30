@@ -13,7 +13,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x12power_sample.proto\"^\n\x0bPowerSample\x12\x14\n\x0ctimestamp_us\x18\x01 \x01(\r\x12\x0e\n\x06\x61vg_mw\x18\x02 \x01(\r\x12\x13\n\x0b\x64uration_us\x18\x03 \x01(\r\x12\x14\n\x0cis_inference\x18\x04 \x01(\x08\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x12power_sample.proto\"`\n\x0bPowerSample\x12\x14\n\x0ctimestamp_us\x18\x01 \x01(\r\x12\x10\n\x08\x65nergy_j\x18\x02 \x01(\x02\x12\x13\n\x0b\x64uration_us\x18\x03 \x01(\r\x12\x14\n\x0cis_inference\x18\x04 \x01(\x08\x62\x06proto3')
 
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, globals())
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'power_sample_pb2', globals())
@@ -21,5 +21,5 @@ if _descriptor._USE_C_DESCRIPTORS == False:
 
   DESCRIPTOR._options = None
   _POWERSAMPLE._serialized_start=22
-  _POWERSAMPLE._serialized_end=116
+  _POWERSAMPLE._serialized_end=118
 # @@protoc_insertion_point(module_scope)
