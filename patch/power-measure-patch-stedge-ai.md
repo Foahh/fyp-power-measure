@@ -46,7 +46,7 @@ After patching, **rebuild and flash** the `NPU_Validation` firmware.
 
    Relevant path:
 
-   `fyp-playground/scripts/benchmark/`
+   `fyp-playground/src/benchmark/`
 
 There is **no separate** `power_measure_sync.c` file and **no Makefile change** required for `NPU_Validation`. All changes live inside a single middleware source file.
 
