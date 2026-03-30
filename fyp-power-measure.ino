@@ -14,7 +14,7 @@ Adafruit_INA228 ina228;
 
 static constexpr uint8_t INA228_I2C_ADDR = INA228_I2CADDR_DEFAULT;
 static constexpr float SHUNT_RESISTOR_OHMS = 0.1f;
-static constexpr float MAX_EXPECTED_CURRENT_A = 1.5f;
+static constexpr float MAX_EXPECTED_CURRENT_A = 1.0f;
 
 static constexpr int INA228_SDA_PIN = 2;
 static constexpr int INA228_SCL_PIN = 1;
