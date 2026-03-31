@@ -12,7 +12,6 @@
 /* Struct definitions */
 typedef struct _PowerSample {
     uint32_t timestamp_us;
-    /* INA228 hardware accumulator energy over duration_us (joules). */
     float energy_j;
     uint32_t duration_us;
     bool is_inference;
