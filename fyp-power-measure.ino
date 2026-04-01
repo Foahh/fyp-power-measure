@@ -1,14 +1,8 @@
 #include <Adafruit_INA228.h>
 #include <Wire.h>
 
-#ifndef MANUAL_MODE
-#define MANUAL_MODE 0
-#endif
-
-#if !MANUAL_MODE
 #include "pb_encode.h"
 #include "power_sample.pb.h"
-#endif
 
 Adafruit_INA228 ina228;
 
@@ -21,12 +15,8 @@ static constexpr int INA228_SCL_PIN = 1;
 
 static constexpr int IS_INFERENCING_PIN = 3;
 static constexpr char PM_PING_CMD[] = "PM_PING";
+static constexpr char PM_RESET_CMD[] = "PM_RESET";
 
-#if MANUAL_MODE
-static constexpr uint32_t CONSTANT_SAMPLE_PERIOD_US = 0;
-#endif
-
-#if !MANUAL_MODE
 static uint8_t pb_buf[PowerSample_size];
 
 static volatile bool edge_detected = false;
@@ -38,7 +28,6 @@ static void IRAM_ATTR onSyncEdge() {
 }
 
 static uint32_t window_start_us = 0;
-#endif
 
 static char serial_cmd_buf[32];
 static size_t serial_cmd_len = 0;
@@ -52,6 +41,14 @@ static void sendAckLine() {
 static void processSerialCommand(const char *cmd) {
   if (strcmp(cmd, PM_PING_CMD) == 0) {
     sendAckLine();
+    return;
+  }
+
+  if (strcmp(cmd, PM_RESET_CMD) == 0) {
+    ina228.resetAccumulators();
+    window_start_us = micros();
+    edge_detected = false;
+    return;
   }
 }
 
@@ -77,7 +74,6 @@ static void serviceSerialCommands() {
   }
 }
 
-#if !MANUAL_MODE
 static void sendSample(uint32_t ts, float energy_j, uint32_t duration_us,
                        bool is_inference) {
   PowerSample sample = PowerSample_init_zero;
@@ -99,7 +95,6 @@ static void sendSample(uint32_t ts, float energy_j, uint32_t duration_us,
   Serial.write(prefix, 4);
   Serial.write(pb_buf, len);
 }
-#endif
 
 void setup() {
   Serial.begin(921600);
@@ -108,11 +103,6 @@ void setup() {
   Wire.begin(INA228_SDA_PIN, INA228_SCL_PIN);
   Wire.setClock(400000);
   pinMode(IS_INFERENCING_PIN, INPUT_PULLDOWN);
-
-#if MANUAL_MODE
-  Serial.println("# PM MANUAL_MODE: "
-                 "ts_us,vbus_v,current_a,power_w,energy_j,sync");
-#endif
 
   while (!ina228.begin(INA228_I2C_ADDR, &Wire)) {
     Serial.println("# ERROR: INA228 not found.");
@@ -129,31 +119,14 @@ void setup() {
   ina228.setMode(INA228_MODE_CONT_BUS_SHUNT);
   ina228.resetAccumulators();
 
-#if !MANUAL_MODE
   window_start_us = micros();
   attachInterrupt(digitalPinToInterrupt(IS_INFERENCING_PIN), onSyncEdge,
                   CHANGE);
-#endif
 }
 
 void loop() {
   serviceSerialCommands();
 
-#if MANUAL_MODE
-  static uint32_t next_sample_us = 0;
-  const uint32_t now = micros();
-  if (CONSTANT_SAMPLE_PERIOD_US != 0 && (int32_t)(now - next_sample_us) < 0)
-    return;
-  next_sample_us = now + CONSTANT_SAMPLE_PERIOD_US;
-
-  const float vbus_v = ina228.readBusVoltage();
-  const float current_a = ina228.readCurrent();
-  const float power_w = ina228.readPower();
-  const float energy_j = max(ina228.readEnergy(), 0.0f);
-  const int sync = digitalRead(IS_INFERENCING_PIN) == HIGH;
-  Serial.printf("%lu,%.6f,%.6f,%.6f,%.9f,%d\n", (unsigned long)now, vbus_v,
-                current_a, power_w, energy_j, sync);
-#else
   if (!edge_detected) return;
   edge_detected = false;
 
@@ -170,5 +143,4 @@ void loop() {
   // Rising edge (sync_now=true) → idle window ended.
   // Falling edge (sync_now=false) → inference window ended.
   sendSample(ts, energy_j, duration_us, !sync_now);
-#endif
 }
